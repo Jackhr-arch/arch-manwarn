@@ -1,5 +1,5 @@
 use crate::config::CONFIG;
-use html2text::from_read;
+use nanohtml2text::html2text;
 use reqwest::Client;
 use std::str::FromStr as _;
 use std::time::Duration;
@@ -163,8 +163,7 @@ async fn fetch_and_parse_single_feed(client: Client, url: &str) -> Vec<NewsEntry
 
             NewsEntry {
                 title,
-                summary: from_read(summary.as_bytes(), 80)
-                    .unwrap_or_else(|_| String::from("[could not parse summary]")),
+                summary: html2text(&summary),
                 link,
             }
         })
