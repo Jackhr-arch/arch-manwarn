@@ -1,10 +1,10 @@
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 #[cfg(debug_assertions)]
 use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 pub fn config_path() -> PathBuf {
     // For development: ARCH_MANWARN_CONFIG=/path/to/custom/config.toml
@@ -196,4 +196,4 @@ impl Config {
     }
 }
 
-pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
+pub static CONFIG: LazyLock<Config> = LazyLock::new(Config::load);

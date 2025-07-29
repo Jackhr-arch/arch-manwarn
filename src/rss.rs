@@ -1,9 +1,9 @@
 use crate::config::CONFIG;
 use nanohtml2text::html2text;
-use reqwest::Client;
-use std::str::FromStr as _;
-use std::time::Duration;
-use std::time::SystemTime;
+use std::str::FromStr;
+use std::time::{Duration, SystemTime};
+use ureq::tls::{TlsConfig, TlsProvider};
+use ureq::Agent;
 
 #[derive(Debug, Clone)]
 pub struct NewsEntry {
@@ -63,8 +63,7 @@ pub fn check_for_manual_intervention() -> ManualInterventionResult {
     let mut found_entries = Vec::new();
 
     // Biggest performance overhead is here:
-    // This is where the actual network request to the feed is awaited
-    // Include tokio runtime initializing
+    // This is where the actual network request to the feed is fetched
     let entries = get_entries_from_feeds();
 
     let last_successful_request = if !entries.is_empty() {
@@ -105,30 +104,32 @@ pub fn check_for_manual_intervention() -> ManualInterventionResult {
     }
 }
 
-#[tokio::main]
-pub async fn get_entries_from_feeds() -> Vec<NewsEntry> {
-    let client = Client::builder()
+pub fn get_entries_from_feeds() -> Vec<NewsEntry> {
+    let pool = ureq::Agent::config_builder()
+        .tls_config(
+            TlsConfig::builder()
+                // requires the native-tls feature
+                .provider(TlsProvider::NativeTls)
+                .build(),
+        )
+        .timeout_per_call(Some(Duration::from_secs(10)))
         .user_agent("arch-manwarn")
-        .timeout(Duration::from_secs(10))
         .build()
-        .expect("Failed to build HTTP client");
+        .new_agent();
 
     // Create a vector of futures, one for each feed URL
     let fetches = CONFIG
         .rss_feed_urls
         .iter()
-        .map(|url| fetch_and_parse_single_feed(client.clone(), url));
+        .flat_map(|url| fetch_and_parse_single_feed(&pool, url));
 
-    // Await all fetches concurrently
-    let results = tokio::task::JoinSet::from_iter(fetches).join_all().await;
-
-    // Flatten all entries into one Vec
-    results.into_iter().flatten().collect()
+    // Fetch and flatten all entries into one Vec
+    fetches.collect()
 }
 
-async fn fetch_and_parse_single_feed(client: Client, url: &str) -> Vec<NewsEntry> {
-    let content = match client.get(url).send().await {
-        Ok(response) => match response.text().await {
+fn fetch_and_parse_single_feed(client: &Agent, url: &str) -> Vec<NewsEntry> {
+    let content = match client.get(url).call() {
+        Ok(response) => match response.into_body().read_to_string() {
             Ok(text) => text,
             Err(err) => {
                 eprintln!("Failed to read response text from {url}: {err}");
