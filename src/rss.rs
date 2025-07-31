@@ -1,5 +1,6 @@
 use crate::config::CONFIG;
 use nanohtml2text::html2text;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use ureq::tls::{TlsConfig, TlsProvider};
@@ -120,7 +121,7 @@ pub fn get_entries_from_feeds() -> Vec<NewsEntry> {
     // Create a vector of futures, one for each feed URL
     let fetches = CONFIG
         .rss_feed_urls
-        .iter()
+        .par_iter()
         .flat_map(|url| fetch_and_parse_single_feed(&pool, url));
 
     // Fetch and flatten all entries into one Vec

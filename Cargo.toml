@@ -26,3 +26,4 @@ ureq = { version = "3.0.12", default-features = false, features = [
     "native-tls",
 ] }
 nanohtml2text = "0.2.1"
+rayon = "1.10.0"
